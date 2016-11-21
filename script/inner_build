@@ -1,0 +1,80 @@
+set -e
+
+stable_url="https://cdn.kernel.org/pub/linux/kernel/v4.x"
+testing_url="${stable_url}/testing"
+short_key=6092693E
+
+VERSION=$1
+ARCHIVE="/mnt/tmp/archive/linux-$VERSION.tar.xz"
+ARCHIVE_PATH=$(basename $ARCHIVE)
+
+add_signing_keys() {
+  if ! gpg --list-keys | grep -q $short_key ; then
+    gpg --keyserver hkp://keys.gnupg.net --recv-keys  $short_key
+  fi
+}
+
+download_url() {
+  if [ ! -z "$DOWNLOAD_TYPE" ]; then
+    URL=$testing_url
+  else
+    URL=$stable_url
+  fi
+}
+
+download_and_verify_archive() {
+  download_url
+  add_signing_keys
+
+  if [ ! -d $(basename $ARCHIVE) ]; then
+    mkdir -p tmp/archive
+  fi
+
+  if [ ! -e $ARCHIVE ]; then
+    wget -O $ARCHIVE "$URL/linux-${VERSION}.tar.xz"
+  fi
+
+  if [ ! -e ${ARCHIVE}.sign ]; then
+    wget -O ${ARCHIVE}.sign $URL/linux-${VERSION}.tar.sign
+  fi
+
+  if ! xz -cd $ARCHIVE | gpg --verify ${ARCHIVE}.sign -; then
+    echo "Failed to verify GPG signature"
+    exit 1
+  fi
+
+}
+
+copy_kconfig() {
+  WORKSPACE=$1
+
+  cp /mnt/configs/config-${VERSION} $WORKSPACE/linux-${VERSION}/.config
+}
+
+build() {
+  VERSION=$1
+
+  WORKSPACE=$(mktemp -d)
+
+  if [ ! -e $ARCHIVE ]; then
+    download_and_verify_archive
+  fi
+
+  tar xf $ARCHIVE -C $WORKSPACE
+  copy_kconfig $WORKSPACE
+  run_deb_pkg $WORKSPACE
+}
+
+run_deb_pkg() {
+  WORKSPACE=$1
+
+  # LOL this is disgusting. Don't do this.
+  cd $WORKSPACE/linux-*
+  fakeroot make deb-pkg -j $(nproc)
+  cd /mnt
+}
+
+apt-get update
+apt-get install build-essential bc ca-certificates fakeroot wget -y
+
+build $1

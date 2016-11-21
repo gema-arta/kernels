@@ -1,0 +1,7 @@
+VERSION=$1
+
+docker run -d --name ubuntu-12.04-$VERSION -v $(pwd):/mnt -i -t ubuntu:12.04 bash
+docker exec -it ubuntu-12.04-$VERSION bash /mnt/script/inner_build $VERSION
+
+docker run -d --name debian-8-$VERSION -v $(pwd):/mnt -i -t debian:jessie bash
+docker exec -it debian-8-$VERSION bash /mnt/script/inner_build $VERSION
