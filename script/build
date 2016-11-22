@@ -1,5 +1,5 @@
 #!/bin/bash
 
 for build in $(ls configs/ | cut -d- -f2); do
-  ./script/run_inner_build $VERSION
+  ./script/run_inner_build $build
 done
